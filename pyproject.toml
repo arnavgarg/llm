@@ -1,0 +1,27 @@
+[project]
+name = "llm"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "torch>=2.0.0,<2.3.0",
+    "tiktoken>=0.7.0",
+    "wandb>=0.17.0",
+    "numpy>=1.26.0,<2.0.0",
+    "tqdm>=4.66.0",
+]
+
+[project.scripts]
+exp = "main:main"
+
+[tool.uv]
+package = true
+
+[tool.setuptools]
+py-modules = ["main"]
+packages = ["experiments", "models", "training", "attention", "tokenizers", "dataloaders"]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

@@ -1,0 +1,39 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Packages
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.eggs/
+
+# Logging and Debug
+*.log
+tea_debug.log
+wandb/
+
+# Temporary and local files
+tmp/
+.DS_Store
+datasets/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
