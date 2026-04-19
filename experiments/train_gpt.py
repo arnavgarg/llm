@@ -23,6 +23,7 @@ def get_argparser():
 
     # training hyperparameters
     parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--grad-accum-steps", type=int, default=1)
     parser.add_argument("--n-epochs", type=int, default=2)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--data-fraction", type=float, default=0.01)
@@ -57,7 +58,7 @@ def main():
         torch.save(model_to_save.state_dict(), weights_path)
         run.save(weights_path)
 
-    trainer = Trainer(model, train_loader, val_loader, optimizer, loss, wandb_run=run)
+    trainer = Trainer(model, train_loader, val_loader, optimizer, loss, wandb_run=run, grad_accum_steps=cfg.grad_accum_steps)
     trainer.fit(cfg.n_epochs, epoch_callback=save_weights)
 
     run.finish()

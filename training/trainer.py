@@ -15,6 +15,7 @@ class Trainer:
         optimizer: Optimizer,
         loss_fn: nn.Module,
         wandb_run=None,
+        grad_accum_steps: int = 1,
     ):
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
@@ -29,6 +30,7 @@ class Trainer:
         self.optimizer = optimizer
         self.loss_fn = loss_fn
         self.wandb_run = wandb_run
+        self.grad_accum_steps = grad_accum_steps
         self.global_step = 0
 
     def _run_epoch(self, loader: DataLoader, train: bool, epoch: int) -> float:
@@ -37,7 +39,10 @@ class Trainer:
 
         desc = f"{'train' if train else 'val'} (epoch {epoch})"
         with torch.set_grad_enabled(train):
-            for x, y in tqdm(loader, desc=desc, leave=False):
+            if train:
+                self.optimizer.zero_grad()
+
+            for i, (x, y) in enumerate(tqdm(loader, desc=desc, leave=False)):
                 x, y = x.to(self.device), y.to(self.device)
 
                 with torch.autocast(device_type=self.device.type, dtype=torch.bfloat16, enabled=self.device.type == "cuda"):
@@ -46,16 +51,17 @@ class Trainer:
                     loss = self.loss_fn(logits.view(B * T, V), y.view(B * T))
 
                 if train:
-                    self.optimizer.zero_grad()
-                    loss.backward()
-                    self.optimizer.step()
-                    
-                    self.global_step += 1
-                    if self.wandb_run is not None:
-                        self.wandb_run.log({
-                            "train/batch_loss": loss.item(),
-                            "train/global_step": self.global_step
-                        })
+                    (loss / self.grad_accum_steps).backward()
+
+                    if (i + 1) % self.grad_accum_steps == 0 or (i + 1) == len(loader):
+                        self.optimizer.step()
+                        self.optimizer.zero_grad()
+                        self.global_step += 1
+                        if self.wandb_run is not None:
+                            self.wandb_run.log({
+                                "train/batch_loss": loss.item(),
+                                "train/global_step": self.global_step
+                            })
 
                 total_loss += loss.item()
 
