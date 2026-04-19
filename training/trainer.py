@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torch.nn.utils import clip_grad_norm_
 from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LRScheduler
+from torch.utils.data import DataLoader
 from typing import Optional, Callable
 from tqdm import tqdm
 
@@ -14,8 +16,10 @@ class Trainer:
         val_loader: DataLoader,
         optimizer: Optimizer,
         loss_fn: nn.Module,
+        scheduler: LRScheduler,
         wandb_run=None,
         grad_accum_steps: int = 1,
+        max_grad_norm: float = 1.0,
     ):
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
@@ -29,8 +33,10 @@ class Trainer:
         self.val_loader = val_loader
         self.optimizer = optimizer
         self.loss_fn = loss_fn
+        self.scheduler = scheduler
         self.wandb_run = wandb_run
         self.grad_accum_steps = grad_accum_steps
+        self.max_grad_norm = max_grad_norm
         self.global_step = 0
 
     def _run_epoch(self, loader: DataLoader, train: bool, epoch: int) -> float:
@@ -45,6 +51,7 @@ class Trainer:
             for i, (x, y) in enumerate(tqdm(loader, desc=desc, leave=False)):
                 x, y = x.to(self.device), y.to(self.device)
 
+                # casts to fp16 on gpus for faster training 
                 with torch.autocast(device_type=self.device.type, dtype=torch.bfloat16, enabled=self.device.type == "cuda"):
                     logits = self.model(x)  # (B, T, vocab_size)
                     B, T, V = logits.shape
@@ -54,12 +61,17 @@ class Trainer:
                     (loss / self.grad_accum_steps).backward()
 
                     if (i + 1) % self.grad_accum_steps == 0 or (i + 1) == len(loader):
+                        grad_norm = clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
                         self.optimizer.step()
+                        self.scheduler.step()
                         self.optimizer.zero_grad()
                         self.global_step += 1
+                        
                         if self.wandb_run is not None:
                             self.wandb_run.log({
                                 "train/batch_loss": loss.item(),
+                                "train/grad_norm": grad_norm.item(),
+                                "train/lr": self.scheduler.get_last_lr()[0],
                                 "train/global_step": self.global_step
                             })
 
