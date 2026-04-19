@@ -10,18 +10,22 @@ from training.trainer import Trainer
 
 def get_argparser():
     parser = argparse.ArgumentParser(description="Train GPT model")
+    
+    # wandb configuration
+    parser.add_argument("--run-name", type=str, default="train_gpt", help="Name for the wandb run")
+
     # network hyperparameters
-    parser.add_argument("--context_length", type=int, default=512)
-    parser.add_argument("--d_model", type=int, default=32)
-    parser.add_argument("--d_ff", type=int, default=128)
-    parser.add_argument("--num_heads", type=int, default=2)
+    parser.add_argument("--context-length", type=int, default=512)
+    parser.add_argument("--d-model", type=int, default=32)
+    parser.add_argument("--d-ff", type=int, default=128)
+    parser.add_argument("--num-heads", type=int, default=2)
     parser.add_argument("--depth", type=int, default=2)
 
     # training hyperparameters
-    parser.add_argument("--batch_size", type=int, default=8)
-    parser.add_argument("--n_epochs", type=int, default=2)
+    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--n-epochs", type=int, default=2)
     parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--data_fraction", type=float, default=0.01)
+    parser.add_argument("--data-fraction", type=float, default=0.01)
 
     return parser
 
@@ -30,7 +34,7 @@ def main():
     args = parser.parse_args()
     config = vars(args)
 
-    run = wandb.init(project="llm", name="train_gpt", config=config)
+    run = wandb.init(project="llm", name=args.run_name, config=config)
     cfg = run.config
 
     tokenizer = CharacterTokenizer()
