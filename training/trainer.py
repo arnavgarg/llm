@@ -79,14 +79,6 @@ class Trainer:
         return total_loss / len(loader)
 
     def fit(self, num_epochs: int, epoch_callback: Optional[Callable] = None):
-        total_steps = num_epochs * len(self.train_loader) // self.grad_accum_steps
-        if self.warmup_steps > 0:
-            warmup = LinearLR(self.optimizer, start_factor=1e-8, end_factor=1.0, total_iters=self.warmup_steps)
-            cosine = CosineAnnealingLR(self.optimizer, T_max=total_steps - self.warmup_steps)
-            self.scheduler = SequentialLR(self.optimizer, schedulers=[warmup, cosine], milestones=[self.warmup_steps])
-        else:
-            self.scheduler = CosineAnnealingLR(self.optimizer, T_max=total_steps)
-
         print(f"Training on {self.device}")
         for epoch in range(1, num_epochs + 1):
             train_loss = self._run_epoch(self.train_loader, train=True, epoch=epoch)
