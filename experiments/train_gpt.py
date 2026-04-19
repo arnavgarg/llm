@@ -1,4 +1,5 @@
 import os
+import argparse
 import torch
 import wandb
 
@@ -7,22 +8,28 @@ from models.gpt import GPT
 from tokenizers.character import CharacterTokenizer
 from training.trainer import Trainer
 
-config = {
+def get_argparser():
+    parser = argparse.ArgumentParser(description="Train GPT model")
     # network hyperparameters
-    "context_length": 512,
-    "d_model": 32,
-    "d_ff": 128,
-    "num_heads": 2,
-    "depth": 2,
-    
+    parser.add_argument("--context_length", type=int, default=512)
+    parser.add_argument("--d_model", type=int, default=32)
+    parser.add_argument("--d_ff", type=int, default=128)
+    parser.add_argument("--num_heads", type=int, default=2)
+    parser.add_argument("--depth", type=int, default=2)
+
     # training hyperparameters
-    "batch_size": 8,
-    "n_epochs": 2,
-    "lr": 1e-3,
-    "data_fraction": 0.01,  
-}
+    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--n_epochs", type=int, default=2)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--data_fraction", type=float, default=0.01)
+
+    return parser
 
 def main():
+    parser = get_argparser()
+    args = parser.parse_args()
+    config = vars(args)
+
     run = wandb.init(project="llm", name="train_gpt", config=config)
     cfg = run.config
 
