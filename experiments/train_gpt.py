@@ -45,6 +45,10 @@ def main():
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
     loss = torch.nn.CrossEntropyLoss()
 
+    wandb.summary["num_params"] = sum(p.numel() for p in model.parameters())
+    wandb.summary["optimizer"] = type(optimizer).__name__
+    wandb.summary["loss"] = type(loss).__name__
+
     wandb.watch(model, log="gradients", log_freq=100)
 
     def save_weights(model_to_save, epoch):
