@@ -43,14 +43,14 @@ def main():
 
     wandb.watch(model, log="gradients", log_freq=100)
 
-    trainer = Trainer(model, train_loader, val_loader, optimizer, loss, wandb_run=run)
-    trainer.fit(cfg.n_epochs)
+    def save_weights(model_to_save, epoch):
+        os.makedirs("weights", exist_ok=True)
+        weights_path = f"weights/model_epoch_{epoch}.pt"
+        torch.save(model_to_save.state_dict(), weights_path)
+        run.save(weights_path)
 
-    # save weights
-    os.makedirs("weights", exist_ok=True)
-    weights_path = "weights/model.pt"
-    torch.save(model.state_dict(), weights_path)
-    run.save(weights_path)
+    trainer = Trainer(model, train_loader, val_loader, optimizer, loss, wandb_run=run)
+    trainer.fit(cfg.n_epochs, epoch_callback=save_weights)
 
     run.finish()
 

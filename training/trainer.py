@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.optim import Optimizer
-from typing import Optional
+from typing import Optional, Callable
 from tqdm import tqdm
 
 
@@ -60,7 +60,7 @@ class Trainer:
 
         return total_loss / len(loader)
 
-    def fit(self, num_epochs: int):
+    def fit(self, num_epochs: int, epoch_callback: Optional[Callable] = None):
         print(f"Training on {self.device}")
         for epoch in range(1, num_epochs + 1):
             train_loss = self._run_epoch(self.train_loader, train=True, epoch=epoch)
@@ -72,3 +72,5 @@ class Trainer:
                     "val/loss": val_loss,
                     "epoch": epoch
                 })
+            if epoch_callback is not None:
+                epoch_callback(self.model, epoch)
