@@ -40,9 +40,10 @@ class Trainer:
             for x, y in tqdm(loader, desc=desc, leave=False):
                 x, y = x.to(self.device), y.to(self.device)
 
-                logits = self.model(x)  # (B, T, vocab_size)
-                B, T, V = logits.shape
-                loss = self.loss_fn(logits.view(B * T, V), y.view(B * T))
+                with torch.autocast(device_type=self.device.type, dtype=torch.bfloat16, enabled=self.device.type == "cuda"):
+                    logits = self.model(x)  # (B, T, vocab_size)
+                    B, T, V = logits.shape
+                    loss = self.loss_fn(logits.view(B * T, V), y.view(B * T))
 
                 if train:
                     self.optimizer.zero_grad()
