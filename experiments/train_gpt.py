@@ -7,6 +7,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 from dataloaders.tiny_shakespeare import get_dataloaders
 from models.gpt import GPT
 from tokenizers.character import CharacterTokenizer
+from tokenizers.tiktoken import TiktokenTokenizer
 from training.trainer import Trainer
 
 def get_argparser():
@@ -21,6 +22,10 @@ def get_argparser():
     parser.add_argument("--d-ff", type=int, default=128)
     parser.add_argument("--num-heads", type=int, default=2)
     parser.add_argument("--depth", type=int, default=2)
+
+    # tokenizer
+    parser.add_argument("--tokenizer", type=str, default="character", choices=["character", "tiktoken"])
+    parser.add_argument("--tiktoken-encoding", type=str, default="cl100k_base")
 
     # training hyperparameters
     parser.add_argument("--dropout", type=float, default=0.1)
@@ -42,7 +47,11 @@ def main():
     run = wandb.init(project="llm", name=args.run_name, config=config)
     cfg = run.config
 
-    tokenizer = CharacterTokenizer()
+    if cfg.tokenizer == "tiktoken":
+        tokenizer = TiktokenTokenizer(cfg.tiktoken_encoding)
+    else:
+        tokenizer = CharacterTokenizer()
+        
     train_loader, val_loader = get_dataloaders(cfg.context_length, cfg.batch_size, tokenizer, data_fraction=cfg.data_fraction)
     vocab_size = train_loader.dataset.vocab_size
     print(f"Vocab size: {vocab_size}")
