@@ -27,7 +27,7 @@ def get_argparser():
     # dataset
     parser.add_argument("--dataset", type=str, default="tiny_shakespeare", choices=["tiny_shakespeare", "tiny_stories"])
     parser.add_argument("--steps-per-epoch", type=int, default=None, help="For tiny_stories: batches per epoch (default: 1000)")
-    parser.add_argument("--val-steps", type=int, default=100, help="For tiny_stories: validation batches per epoch")
+    parser.add_argument("--val-steps", type=int, default=None, help="For tiny_stories: validation batches per epoch (default: 10%% of steps-per-epoch)")
 
     # tokenizer
     parser.add_argument("--tokenizer", type=str, default="character", choices=["character", "tiktoken"])
@@ -63,7 +63,6 @@ def main():
             cfg.context_length, cfg.batch_size, tokenizer,
             steps_per_epoch=cfg.steps_per_epoch,
             val_steps=cfg.val_steps,
-            data_fraction=cfg.data_fraction,
         )
     else:
         train_loader, val_loader = get_shakespeare_dataloaders(
