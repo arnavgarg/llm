@@ -4,7 +4,8 @@ import torch
 import wandb
 from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 
-from dataloaders.tiny_shakespeare import get_dataloaders
+from dataloaders.tiny_shakespeare import get_dataloaders as get_shakespeare_dataloaders
+from dataloaders.tiny_stories import get_dataloaders as get_stories_dataloaders
 from models.gpt import GPT
 from tokenizers.character import CharacterTokenizer
 from tokenizers.tiktoken import TiktokenTokenizer
@@ -23,6 +24,11 @@ def get_argparser():
     parser.add_argument("--num-heads", type=int, default=2)
     parser.add_argument("--depth", type=int, default=2)
 
+    # dataset
+    parser.add_argument("--dataset", type=str, default="tiny_shakespeare", choices=["tiny_shakespeare", "tiny_stories"])
+    parser.add_argument("--steps-per-epoch", type=int, default=None, help="For tiny_stories: batches per epoch (default: 1000)")
+    parser.add_argument("--val-steps", type=int, default=100, help="For tiny_stories: validation batches per epoch")
+
     # tokenizer
     parser.add_argument("--tokenizer", type=str, default="character", choices=["character", "tiktoken"])
     parser.add_argument("--tiktoken-encoding", type=str, default="cl100k_base")
@@ -35,7 +41,7 @@ def get_argparser():
     parser.add_argument("--warmup-steps", type=int, default=100)
     parser.add_argument("--n-epochs", type=int, default=2)
     parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--data-fraction", type=float, default=0.01)
+    parser.add_argument("--data-fraction", type=float, default=0.01, help="For tiny_shakespeare only")
 
     return parser
 
@@ -51,8 +57,18 @@ def main():
         tokenizer = TiktokenTokenizer(cfg.tiktoken_encoding)
     else:
         tokenizer = CharacterTokenizer()
-        
-    train_loader, val_loader = get_dataloaders(cfg.context_length, cfg.batch_size, tokenizer, data_fraction=cfg.data_fraction)
+
+    if cfg.dataset == "tiny_stories":
+        train_loader, val_loader = get_stories_dataloaders(
+            cfg.context_length, cfg.batch_size, tokenizer,
+            steps_per_epoch=cfg.steps_per_epoch,
+            val_steps=cfg.val_steps,
+            data_fraction=cfg.data_fraction,
+        )
+    else:
+        train_loader, val_loader = get_shakespeare_dataloaders(
+            cfg.context_length, cfg.batch_size, tokenizer, data_fraction=cfg.data_fraction,
+        )
     vocab_size = train_loader.dataset.vocab_size
     print(f"Vocab size: {vocab_size}")
     
