@@ -40,6 +40,7 @@ def get_argparser():
     parser.add_argument("--max-grad-norm", type=float, default=1.0)
     parser.add_argument("--warmup-steps", type=int, default=100)
     parser.add_argument("--n-epochs", type=int, default=2)
+    parser.add_argument("--val-interval", type=int, default=500, help="Optimizer steps between mid-epoch validation runs")
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--data-fraction", type=float, default=0.01, help="For tiny_shakespeare only")
 
@@ -95,7 +96,7 @@ def main():
         torch.save(model_to_save.state_dict(), weights_path)
         run.save(weights_path)
 
-    trainer = Trainer(model, train_loader, val_loader, optimizer, loss, scheduler, wandb_run=run, grad_accum_steps=cfg.grad_accum_steps, max_grad_norm=cfg.max_grad_norm)
+    trainer = Trainer(model, train_loader, val_loader, optimizer, loss, scheduler, wandb_run=run, grad_accum_steps=cfg.grad_accum_steps, max_grad_norm=cfg.max_grad_norm, val_interval=cfg.val_interval)
     trainer.fit(cfg.n_epochs, epoch_callback=save_weights)
 
     run.finish()
