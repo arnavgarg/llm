@@ -1,3 +1,5 @@
+import math
+
 import torch
 import torch.nn as nn
 
@@ -49,7 +51,24 @@ class GPT(nn.Module):
         # weight tying: share the token embedding matrix with the output projection
         # both map between the same spaces (token IDs <-> d_model) so one matrix suffices
         self.output_linear.weight = self.transformer['embedding'].token_embedding.weight
-    
+
+        self.apply(self._init_weights)
+        # scale residual-path output projections by 1/sqrt(2 * num_layers) so the
+        # variance of activations flowing through the residual stream stays bounded
+        residual_std = 0.02 / math.sqrt(2 * num_layers)
+        for name, param in self.named_parameters():
+            if name.endswith('self_attn.out_linear.weight') or name.endswith('ffn.2.weight'):
+                nn.init.normal_(param, mean=0.0, std=residual_std)
+
+    @staticmethod
+    def _init_weights(module):
+        if isinstance(module, nn.Linear):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+
     def forward(self, x):
         transformer_output = self.transformer['embedding'](x)
         for layer in self.transformer['decoder_layers']:
