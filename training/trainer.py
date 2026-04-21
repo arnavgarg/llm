@@ -9,9 +9,6 @@ from torch.utils.data import DataLoader
 from typing import Optional, Callable
 from tqdm import tqdm
 
-_EARLY_STOP_PATIENCE = 5
-
-
 class Trainer:
     def __init__(
         self,
@@ -24,6 +21,7 @@ class Trainer:
         wandb_run=None,
         grad_accum_steps: int = 1,
         max_grad_norm: float = 1.0,
+        early_stopping_patience: Optional[int] = 5,
     ):
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
@@ -41,6 +39,7 @@ class Trainer:
         self.wandb_run = wandb_run
         self.grad_accum_steps = grad_accum_steps
         self.max_grad_norm = max_grad_norm
+        self.early_stopping_patience = early_stopping_patience
         self.global_step = 0
         self.best_val_loss = float('inf')
         self.best_ckpt_path = None
@@ -88,9 +87,9 @@ class Trainer:
             self.best_ckpt_path = ckpt_path
             self.best_ckpt_label = label
             self._patience_counter = 0
-        else:
+        elif self.early_stopping_patience is not None:
             self._patience_counter += 1
-            if self._patience_counter >= _EARLY_STOP_PATIENCE:
+            if self._patience_counter >= self.early_stopping_patience:
                 print(f"Early stopping at {label}")
                 self._stop_early = True
         return val_loss
