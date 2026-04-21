@@ -13,13 +13,13 @@ class TinyStoriesDataset(IterableDataset):
         split: str,
         context_length: int,
         tokenizer: Tokenizer,
-        steps_per_epoch: int,
+        max_samples: int | None = None,
     ):
         assert split in ("train", "val")
         self.hf_split = "validation" if split == "val" else "train"
         self.context_length = context_length
         self.tokenizer = tokenizer
-        self._steps_per_epoch = steps_per_epoch
+        self._max_samples = max_samples
 
     def __iter__(self):
         dataset = load_dataset(
@@ -30,7 +30,7 @@ class TinyStoriesDataset(IterableDataset):
         )
 
         buffer: list[int] = []
-        steps = 0
+        count = 0
         for example in dataset:
             tokens = self.tokenizer.encode(example["text"])
             buffer.extend(tokens)
@@ -40,12 +40,9 @@ class TinyStoriesDataset(IterableDataset):
                 x = torch.tensor(chunk[:-1], dtype=torch.long)
                 y = torch.tensor(chunk[1:], dtype=torch.long)
                 yield x, y
-                steps += 1
-                if steps >= self._steps_per_epoch:
+                count += 1
+                if self._max_samples is not None and count >= self._max_samples:
                     return
-
-    def __len__(self) -> int:
-        return self._steps_per_epoch
 
     @property
     def vocab_size(self) -> int:
@@ -56,20 +53,16 @@ def get_dataloaders(
     context_length: int,
     batch_size: int,
     tokenizer: Tokenizer,
-    steps_per_epoch: int | None = None,
     val_steps: int | None = None,
     num_workers: int = 0,
 ) -> tuple[DataLoader, DataLoader]:
-    steps_per_epoch = steps_per_epoch or 1000
-    val_steps = val_steps or steps_per_epoch // 10
-
     train_ds = TinyStoriesDataset(
         "train", context_length, tokenizer,
-        steps_per_epoch=steps_per_epoch * batch_size,
+        max_samples=None,
     )
     val_ds = TinyStoriesDataset(
         "val", context_length, tokenizer,
-        steps_per_epoch=val_steps * batch_size,
+        max_samples=val_steps * batch_size if val_steps is not None else None,
     )
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, num_workers=num_workers)

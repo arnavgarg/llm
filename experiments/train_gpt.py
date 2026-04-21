@@ -1,4 +1,5 @@
 import os
+import math
 import argparse
 import torch
 import wandb
@@ -9,7 +10,7 @@ from dataloaders.tiny_stories import get_dataloaders as get_stories_dataloaders
 from models.gpt import GPT
 from tokenizers.character import CharacterTokenizer
 from tokenizers.tiktoken import TiktokenTokenizer
-from training.trainer import Trainer
+from training.trainer import EpochTrainer, MaxStepsTrainer
 
 def get_argparser():
     parser = argparse.ArgumentParser(description="Train GPT model")
@@ -26,8 +27,7 @@ def get_argparser():
 
     # dataset
     parser.add_argument("--dataset", type=str, default="tiny_shakespeare", choices=["tiny_shakespeare", "tiny_stories"])
-    parser.add_argument("--steps-per-epoch", type=int, default=None, help="For tiny_stories: batches per epoch (default: 1000)")
-    parser.add_argument("--val-steps", type=int, default=None, help="For tiny_stories: validation batches per epoch (default: 10%% of steps-per-epoch)")
+    parser.add_argument("--val-steps", type=int, default=None, help="For tiny_stories: validation batches per check (default: full val split)")
 
     # tokenizer
     parser.add_argument("--tokenizer", type=str, default="character", choices=["character", "tiktoken"])
@@ -39,8 +39,9 @@ def get_argparser():
     parser.add_argument("--grad-accum-steps", type=int, default=1)
     parser.add_argument("--max-grad-norm", type=float, default=1.0)
     parser.add_argument("--warmup-steps", type=int, default=100)
-    parser.add_argument("--n-epochs", type=int, default=2)
-    parser.add_argument("--val-interval", type=int, default=500, help="Optimizer steps between mid-epoch validation runs")
+    parser.add_argument("--n-epochs", type=int, default=None, help="Number of epochs (uses EpochTrainer; map-style datasets only)")
+    parser.add_argument("--max-steps", type=int, default=None, help="Total training batches with dataloader cycling (uses MaxStepsTrainer)")
+    parser.add_argument("--val-interval", type=int, default=500, help="Batches between mid-run validation runs (MaxStepsTrainer only)")
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--data-fraction", type=float, default=0.01, help="For tiny_shakespeare only")
 
@@ -50,6 +51,13 @@ def main():
     parser = get_argparser()
     args = parser.parse_args()
     config = vars(args)
+
+    if args.n_epochs is None and args.max_steps is None:
+        parser.error("one of --n-epochs or --max-steps is required")
+    if args.n_epochs is not None and args.max_steps is not None:
+        parser.error("--n-epochs and --max-steps are mutually exclusive")
+    if args.n_epochs is not None and args.dataset == "tiny_stories":
+        parser.error("tiny_stories is a streaming dataset; use --max-steps instead")
 
     run = wandb.init(project="llm", name=args.run_name, config=config)
     cfg = run.config
@@ -62,7 +70,6 @@ def main():
     if cfg.dataset == "tiny_stories":
         train_loader, val_loader = get_stories_dataloaders(
             cfg.context_length, cfg.batch_size, tokenizer,
-            steps_per_epoch=cfg.steps_per_epoch,
             val_steps=cfg.val_steps,
         )
     else:
@@ -82,13 +89,17 @@ def main():
 
     wandb.watch(model, log="gradients", log_freq=100)
 
-    total_steps = cfg.n_epochs * len(train_loader) // cfg.grad_accum_steps
+    if cfg.n_epochs is not None:
+        total_optimizer_steps = math.ceil(len(train_loader) * cfg.n_epochs / cfg.grad_accum_steps)
+    else:
+        total_optimizer_steps = math.ceil(cfg.max_steps / cfg.grad_accum_steps)
+
     if cfg.warmup_steps > 0:
         warmup = LinearLR(optimizer, start_factor=1e-8, end_factor=1.0, total_iters=cfg.warmup_steps)
-        cosine = CosineAnnealingLR(optimizer, T_max=total_steps - cfg.warmup_steps)
+        cosine = CosineAnnealingLR(optimizer, T_max=total_optimizer_steps - cfg.warmup_steps)
         scheduler = SequentialLR(optimizer, schedulers=[warmup, cosine], milestones=[cfg.warmup_steps])
     else:
-        scheduler = CosineAnnealingLR(optimizer, T_max=total_steps)
+        scheduler = CosineAnnealingLR(optimizer, T_max=total_optimizer_steps)
 
     def save_weights(model_to_save, epoch):
         os.makedirs("weights", exist_ok=True)
@@ -96,8 +107,12 @@ def main():
         torch.save(model_to_save.state_dict(), weights_path)
         run.save(weights_path)
 
-    trainer = Trainer(model, train_loader, val_loader, optimizer, loss, scheduler, wandb_run=run, grad_accum_steps=cfg.grad_accum_steps, max_grad_norm=cfg.max_grad_norm, val_interval=cfg.val_interval)
-    trainer.fit(cfg.n_epochs, epoch_callback=save_weights)
+    if cfg.n_epochs is not None:
+        trainer = EpochTrainer(model, train_loader, val_loader, optimizer, loss, scheduler, wandb_run=run, grad_accum_steps=cfg.grad_accum_steps, max_grad_norm=cfg.max_grad_norm)
+        trainer.fit(cfg.n_epochs, epoch_callback=save_weights)
+    else:
+        trainer = MaxStepsTrainer(model, train_loader, val_loader, optimizer, loss, scheduler, wandb_run=run, grad_accum_steps=cfg.grad_accum_steps, max_grad_norm=cfg.max_grad_norm, val_interval=cfg.val_interval)
+        trainer.fit(cfg.max_steps, epoch_callback=save_weights)
 
     run.finish()
 
