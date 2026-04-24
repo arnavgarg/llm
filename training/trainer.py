@@ -74,8 +74,7 @@ class Trainer:
                 "train/batch_loss": loss_val,
                 "train/grad_norm": grad_norm,
                 "train/lr": self.scheduler.get_last_lr()[0],
-                "train/global_step": self.global_step,
-            })
+            }, step=self.global_step)
 
     def _check_val_checkpoint(self, label: str) -> float:
         val_loss = self._run_val()
@@ -146,8 +145,7 @@ class EpochTrainer(Trainer):
                     "train/loss": train_loss,
                     "val/loss": val_loss,
                     "epoch": epoch,
-                    "train/global_step": self.global_step,
-                })
+                }, step=self.global_step)
 
             if epoch_callback is not None:
                 epoch_callback(self.model, epoch)
@@ -168,7 +166,7 @@ class MaxStepsTrainer(Trainer):
         if not cycle_losses:
             return
         train_loss = sum(cycle_losses) / len(cycle_losses)
-        log_entry = {"train/loss": train_loss, "cycle": cycle, "train/global_step": self.global_step}
+        log_entry = {"train/loss": train_loss, "cycle": cycle}
         if skip_val:
             print(f"Cycle {cycle}  train_loss={train_loss:.4f}")
         else:
@@ -176,7 +174,7 @@ class MaxStepsTrainer(Trainer):
             log_entry["val/loss"] = val_loss
             print(f"Cycle {cycle}  train_loss={train_loss:.4f}  val_loss={val_loss:.4f}")
         if self.wandb_run is not None:
-            self.wandb_run.log(log_entry)
+            self.wandb_run.log(log_entry, step=self.global_step)
 
     def fit(self, max_steps: int, epoch_callback: Optional[Callable] = None):
         print(f"Training on {self.device}")
@@ -219,7 +217,7 @@ class MaxStepsTrainer(Trainer):
             if self.global_step % self.val_interval == 0:
                 val_loss = self._check_val_checkpoint(f"s{self.global_step}")
                 if self.wandb_run is not None:
-                    self.wandb_run.log({"val/loss": val_loss, "train/global_step": self.global_step})
+                    self.wandb_run.log({"val/loss": val_loss}, step=self.global_step)
 
         pbar.close()
 
